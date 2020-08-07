@@ -45,7 +45,7 @@ void Timer0Init(void)		//1毫秒@11.0592MHz
 	AUXR |= 0x80;		//定时器时钟1T模式
 	TMOD &= 0xF0;		//设置定时器模式
 	TL0 = T0_TIM;		//设置定时初值
-	TH0 = T0_TIM>>8;		//设置定时初值
+	TH0 = T0_TIM>>8;	//设置定时初值
 	TF0 = 0;		//清除TF0标志
 	TR0 = 1;		//定时器0开始计时
 	ET0 = 1;		// 使能定时器0溢出中断
@@ -54,7 +54,6 @@ void Timer0Init(void)		//1毫秒@11.0592MHz
 void Delay1us()		//@11.0592MHz
 {
 	unsigned char i;
-
 	_nop_();
 	_nop_();
 	i = 1;
@@ -63,24 +62,24 @@ void Delay1us()		//@11.0592MHz
 
 void UART1_Isr() interrupt 4 // 串口中断服务函数
 {
-	 if (TI)
-	 {
-		 TI = 0;
-		 //busy = 0;
-	 }
+	if (TI)
+	{
+		TI = 0;
+		//busy = 0;
+	}
 	
-  if(RI) // 如果接收到一个字节
-  {
-    RI = 0; // 中断标志位清0
-    Res_Buf[Res_Count++]=SBUF; // 把数据保存到接收数组
-    Res_Sign=1; // 表示已经接收到数据
-    receive_delay=0; // 延时计数器清0
-  } 
+	if (RI) // 如果接收到一个字节
+	{
+		RI = 0; // 中断标志位清0
+		Res_Buf[Res_Count++]=SBUF; // 把数据保存到接收数组
+		Res_Sign=1; // 表示已经接收到数据
+		receive_delay=0; // 延时计数器清0
+	} 
 }
 
 void TM0_Isr() interrupt 1	// 定时器0中断函数
 {
-		receive_delay++;
+	receive_delay++;
 }
 
 enum
@@ -93,7 +92,7 @@ enum
 enum
 {
 	output = 0,
-	input = 1
+	input 
 };
 
 
@@ -151,7 +150,7 @@ unsigned long SPI_1237(char operation_type, char config)
 		}
 		data_temp = data_temp>>5;
 		
-		config_stc8g_DOUT(output);
+		// config_stc8g_DOUT(output);
 		if (operation_type == write_config)	// 写配置
 		{
 			cmd = SPI_WRITE_CMD;
@@ -162,34 +161,38 @@ unsigned long SPI_1237(char operation_type, char config)
 		}
 		
 		// 30~37 bit 发送命令
-		for (i=7; i!= 0xff; i--)
+		cmd <<= 1; //填充成8bit
+		for (i=7; i>=0; i--)
 		{
 			SCLK_H();
 			Delay1us();
-			DOUT=cmd&(1<<6);
-			cmd <<= 1;
+			DOUT=(cmd>>i) & 0x1;
 			SCLK_L();
 			Delay1us();
 		}
 		
 		if (operation_type == write_config)	// 写配置
 		{
-			config_stc8g_DOUT(output);
-			for (i=7; i!= 0xff; i--)
+			// config_stc8g_DOUT(output);
+			for (i=7; i>= 0x0; i--)
 			{
 				SCLK_H();
 				Delay1us();
-				DOUT=config&(1<<6);
-				cmd <<= 1;
+				DOUT=(config>>i) & 0x1;
 				SCLK_L();
 				Delay1us();
 			}
+			// bit46
+			SCLK_H();
+			Delay1us();
+			SCLK_L();
+			Delay1us();
 			return data_temp<<8;
 		}
 		else if (operation_type == read_config)  //	读配置
 		{
-			config_stc8g_DOUT(input);
-			for (i=7; i!= 0xff; i--)
+			// config_stc8g_DOUT(input);
+			for (i=7; i>= 0x0; i--)
 			{
 				SCLK_H();
 				Delay1us();
@@ -198,7 +201,11 @@ unsigned long SPI_1237(char operation_type, char config)
 				SCLK_L();
 				Delay1us();
 			}
-			
+			// bit46
+			SCLK_H();
+			Delay1us();
+			SCLK_L();
+			Delay1us();
 			return data_temp;
 		}
 	}
@@ -207,15 +214,17 @@ unsigned long SPI_1237(char operation_type, char config)
 
 int main()
 {
-	P3IE |= (1<<2);	//使能P3.2数字输入
 	UartInit();
 	P_SW1 = 0x80;	// 串口1映射到5.4 5.5
 	Timer0Init();
-	P3M1=P3M1&(~((1<<2)|(1<<3)));	// 输出模式
-	P3M0=P3M0|((1<<2)|(1<<3));
 	
-//	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
-//	P3M0 &= (~((1<<2)|(1<<3)));
+	// PnM1.x PnM0.x
+	//	0		0	准双向口
+	//	0		1	推挽输出
+	//	1		0	高阻输入
+	//	1		1	开漏输出
+	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
+	P3M0 &= (~((1<<2)|(1<<3)));
 	
 	EA = 1;	// 使能总中断
 	while(1)
