@@ -5,7 +5,7 @@
 #define T0_frequency	1000
 #define	T0_TIM	(65536-(Fosc/1/T0_frequency))
 
-#define	BuadRate	9600
+#define	BuadRate	38400
 #define	T1_TIM	(65536-(Fosc/4/BuadRate))
 
 #define SPI_READ_CMD	0x56
@@ -17,6 +17,8 @@ unsigned char Res_Buf[50]; //接收数据的数组，用来接收串口数据
 unsigned char Res_Count=0; //接收数据的字节计数器，表示本次一帧数据包含几个字节
 unsigned char Res_Sign=0; //接收到数据标志，接收到1个字节就会置1
 unsigned char receive_delay=0; // 延时计数器，用来判断有没有接收完一帧数据
+char systick;
+unsigned char loop_counter=0;
 
 
 void SCLK_H()
@@ -80,6 +82,16 @@ void UART1_Isr() interrupt 4 // 串口中断服务函数
 void TM0_Isr() interrupt 1	// 定时器0中断函数
 {
 	receive_delay++;
+	loop_counter++;
+	
+	if (loop_counter%50 == 0)
+	{
+		P55=!P55;
+		if (TI == 0)
+		{
+			SBUF = 0xA5;
+		}	
+	}
 }
 
 enum
@@ -215,7 +227,7 @@ unsigned long SPI_1237(char operation_type, char config)
 int main()
 {
 	UartInit();
-	P_SW1 = 0x80;	// 串口1映射到5.4 5.5
+	//P_SW1 = 0x80;	// 串口1映射到5.4 5.5
 	Timer0Init();
 	
 	// PnM1.x PnM0.x
@@ -226,25 +238,33 @@ int main()
 	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
 	P3M0 &= (~((1<<2)|(1<<3)));
 	
+	P3M1 &= (~(1<<1));	// 准双向口
+	P3M0 &= (~(1<<1));
+	
+	P5M1 &= (~(1<<5));	// 推挽口
+	P5M0 |= ((1<<5));
+	
 	EA = 1;	// 使能总中断
 	while(1)
 	{
-		if(Res_Sign==1) // 如果串口接收到数据
-		{
-			//延时等待接收完一帧数据
-			if (receive_delay>=5)
-			{
-				////////////
-				//这里就可以处理接收数据了
-				////////////
-				Res_Sign=0;	// 接收标志清0
-				Res_Count=0; // 接收数据字节计数器清0				
-			}
-		}
+
 		
-		if (DOUT == 0)	//	数据转换完成
-		{
-			SPI_1237(read_AD, 0);
-		}
+//		if(Res_Sign==1) // 如果串口接收到数据
+//		{
+//			//延时等待接收完一帧数据
+//			if (receive_delay>=5)
+//			{
+//				////////////
+//				//这里就可以处理接收数据了
+//				////////////
+//				Res_Sign=0;	// 接收标志清0
+//				Res_Count=0; // 接收数据字节计数器清0				
+//			}
+//		}
+//		
+//		if (DOUT == 0)	//	数据转换完成
+//		{
+//			SPI_1237(read_AD, 0);
+//		}
 	}
 }
