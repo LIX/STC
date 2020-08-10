@@ -125,7 +125,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>MON51</Key>
-          <Name>-S11 -B115200 -O15</Name>
+          <Name>-S11 -B115200 -O1295</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>

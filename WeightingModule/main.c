@@ -19,6 +19,8 @@ unsigned char Res_Sign=0; //接收到数据标志，接收到1个字节就会置1
 unsigned char receive_delay=0; // 延时计数器，用来判断有没有接收完一帧数据
 char systick;
 unsigned char loop_counter=0;
+bit busy; 
+bit data_ready;
 
 
 void SCLK_H()
@@ -39,6 +41,7 @@ void UartInit(void)		//9600bps@11.0592MHz
 	TL1 = T1_TIM;		//设定定时初值
 	TH1 = T1_TIM>>8;		//设定定时初值
 	ET1 = 0;		//禁止定时器1中断
+	ES = 1;
 	TR1 = 1;		//启动定时器1
 }
 
@@ -64,12 +67,12 @@ void Delay1us()		//@11.0592MHz
 
 void UART1_Isr() interrupt 4 // 串口中断服务函数
 {
+	P54=!P54;
 	if (TI)
 	{
 		TI = 0;
-		//busy = 0;
+		busy = 0;
 	}
-	
 	if (RI) // 如果接收到一个字节
 	{
 		RI = 0; // 中断标志位清0
@@ -79,6 +82,21 @@ void UART1_Isr() interrupt 4 // 串口中断服务函数
 	} 
 }
 
+void UartSend(char dat)
+{
+ while (busy);
+ busy = 1;
+ SBUF = dat;
+} 
+
+void UartSendStr(char *p)
+{
+ while (*p)
+ {
+ UartSend(*p++);
+ }
+}
+
 void TM0_Isr() interrupt 1	// 定时器0中断函数
 {
 	receive_delay++;
@@ -86,10 +104,14 @@ void TM0_Isr() interrupt 1	// 定时器0中断函数
 	
 	if (loop_counter%50 == 0)
 	{
+		loop_counter=0;
 		P55=!P55;
+		data_ready=1;
 		if (TI == 0)
 		{
-			SBUF = 0xA5;
+			data_ready=1;
+			//SBUF = 0xA5;
+			//UartSendStr("Uart Test !\r\n"); 
 		}	
 	}
 }
@@ -243,11 +265,17 @@ int main()
 	
 	P5M1 &= (~(1<<5));	// 推挽口
 	P5M0 |= ((1<<5));
+	P5M1 &= (~(1<<4));	// 推挽口
+	P5M0 |= ((1<<4));
 	
 	EA = 1;	// 使能总中断
 	while(1)
 	{
-
+		if (data_ready==1)
+		{
+			data_ready=0;
+			UartSendStr("Uart Test !\r\n"); 
+		}
 		
 //		if(Res_Sign==1) // 如果串口接收到数据
 //		{
