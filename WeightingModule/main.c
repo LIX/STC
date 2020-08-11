@@ -21,6 +21,7 @@ char systick;
 unsigned char loop_counter=0;
 bit busy; 
 bit data_ready;
+unsigned char buffer[5];
 
 
 void SCLK_H()
@@ -67,7 +68,6 @@ void Delay1us()		//@11.0592MHz
 
 void UART1_Isr() interrupt 4 // 串口中断服务函数
 {
-	P54=!P54;
 	if (TI)
 	{
 		TI = 0;
@@ -89,9 +89,9 @@ void UartSend(char dat)
  SBUF = dat;
 } 
 
-void UartSendStr(char *p)
+void UartSendStr(char *p, char count)
 {
- while (*p)
+ while (count-->0)
  {
  UartSend(*p++);
  }
@@ -105,14 +105,8 @@ void TM0_Isr() interrupt 1	// 定时器0中断函数
 	if (loop_counter%50 == 0)
 	{
 		loop_counter=0;
-		P55=!P55;
 		data_ready=1;
-		if (TI == 0)
-		{
-			data_ready=1;
-			//SBUF = 0xA5;
-			//UartSendStr("Uart Test !\r\n"); 
-		}	
+		UartSendStr(buffer, 4);
 	}
 }
 
@@ -257,24 +251,40 @@ int main()
 	//	0		1	推挽输出
 	//	1		0	高阻输入
 	//	1		1	开漏输出
+	
+	// P3.2->SCLK  P3.3->MISO
 	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
 	P3M0 &= (~((1<<2)|(1<<3)));
 	
-	P3M1 &= (~(1<<1));	// 准双向口
-	P3M0 &= (~(1<<1));
+	// 3.0->Rx  3.1->Tx
+	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
+	P3M0 &= (~((1<<1)|(1<<0)));
 	
-	P5M1 &= (~(1<<5));	// 推挽口
-	P5M0 |= ((1<<5));
-	P5M1 &= (~(1<<4));	// 推挽口
-	P5M0 |= ((1<<4));
+
+//	P5M1 &= (~(1<<5));	// 推挽口
+//	P5M0 |= ((1<<5));
+//	P5M1 &= (~(1<<4));	// 推挽口
+//	P5M0 |= ((1<<4));
+	
+	P5M1 &= (~((1<<4)|(1<<5)));	// 准双向口
+	P5M0 &= (~((1<<4)|(1<<5)));
+	
+	P5M1 &= (~(1<<1));	// 准双向口
+	P5M0 &= (~(1<<1));
+
 	
 	EA = 1;	// 使能总中断
 	while(1)
 	{
+		if (DOUT == 0)
+		{
+			unsigned long temp = SPI_1237(0, 0);
+			UartSendStr((unsigned char*)&temp, 4);
+		}
 		if (data_ready==1)
 		{
 			data_ready=0;
-			UartSendStr("Uart Test !\r\n"); 
+			//UartSendStr("Uart Test !\r\n"); 
 		}
 		
 //		if(Res_Sign==1) // 如果串口接收到数据
