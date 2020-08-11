@@ -156,11 +156,13 @@ unsigned long SPI_1237(char operation_type, char config)
 		for ( i=0; i<27; i++)
 		{
 			SCLK_H();
-			Delay1us();
+			//Delay1us();
+			_nop_();
 			data_temp |= DOUT;
 			data_temp <<= 1;
 			SCLK_L();
-			Delay1us();
+			_nop_();
+			//Delay1us();
 		}
 		return  data_temp<<5;
 	}
@@ -252,6 +254,9 @@ void Init_GPIO()
 	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
 	P3M0 &= (~((1<<2)|(1<<3)));
 	
+	P32=1; //利用上拉电阻输出1
+	P33=1;
+	
 	//P_SW1 = 0x80;	// 串口1映射到5.4 5.5
 	// 3.0->Rx  3.1->Tx
 	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
@@ -283,7 +288,8 @@ int main()
 		if (data_ready==1)
 		{
 			data_ready=0;
-			UartSendStr("Uart Test",9); 
+			//SPI_1237(read_config, 0);
+			//UartSendStr("Uart Test",9); 
 		}
 		
 //		if(Res_Sign==1) // 如果串口接收到数据
