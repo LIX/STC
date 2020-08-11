@@ -5,7 +5,7 @@
 #define T0_frequency	1000
 #define	T0_TIM	(65536-(Fosc/1/T0_frequency))
 
-#define	BuadRate	38400
+#define	BuadRate	115200
 #define	T1_TIM	(65536-(Fosc/4/BuadRate))
 
 #define SPI_READ_CMD	0x56
@@ -33,7 +33,7 @@ void SCLK_L()
 {
 	P32 = 0;
 }
-void UartInit(void)		//9600bps@11.0592MHz
+void Init_Uart(void)		//9600bps@11.0592MHz
 {
 	SCON = 0x50;		//8位数据,可变波特率
 	AUXR |= 0x40;		//定时器1时钟为Fosc,即1T
@@ -46,7 +46,7 @@ void UartInit(void)		//9600bps@11.0592MHz
 	TR1 = 1;		//启动定时器1
 }
 
-void Timer0Init(void)		//1毫秒@11.0592MHz
+void Init_Timer0(void)		//1毫秒@11.0592MHz
 {
 	AUXR |= 0x80;		//定时器时钟1T模式
 	TMOD &= 0xF0;		//设置定时器模式
@@ -66,7 +66,7 @@ void Delay1us()		//@11.0592MHz
 	while (--i);
 }
 
-void UART1_Isr() interrupt 4 // 串口中断服务函数
+void ISR_UART1() interrupt 4 // 串口中断服务函数
 {
 	if (TI)
 	{
@@ -97,16 +97,16 @@ void UartSendStr(char *p, char count)
  }
 }
 
-void TM0_Isr() interrupt 1	// 定时器0中断函数
+void ISR_Timer0() interrupt 1	// 定时器0中断函数
 {
 	receive_delay++;
 	loop_counter++;
 	
 	if (loop_counter%50 == 0)
 	{
+		P54=!P54;
 		loop_counter=0;
 		data_ready=1;
-		UartSendStr(buffer, 4);
 	}
 }
 
@@ -125,19 +125,19 @@ enum
 
 
 // P3.2 SCLK		P3.3 DOUT
-void config_stc8g_DOUT(char type)
-{
-	if (type == input)
-	{
-		P3M0=P3M0&(~(1<<3));
-		P3M1=P3M1|(1<<3);
-	}
-	else if (type == output)
-	{
-		P3M0 = P3M0|(1<<3);
-		P3M1 = P3M1&(~(1<<3));
-	}
-}
+//void config_stc8g_DOUT(char type)
+//{
+//	if (type == input)
+//	{
+//		P3M0=P3M0&(~(1<<3));
+//		P3M1=P3M1|(1<<3);
+//	}
+//	else if (type == output)
+//	{
+//		P3M0 = P3M0|(1<<3);
+//		P3M1 = P3M1&(~(1<<3));
+//	}
+//}
 
 
 
@@ -240,12 +240,8 @@ unsigned long SPI_1237(char operation_type, char config)
 }
 
 
-int main()
+void Init_GPIO()
 {
-	UartInit();
-	//P_SW1 = 0x80;	// 串口1映射到5.4 5.5
-	Timer0Init();
-	
 	// PnM1.x PnM0.x
 	//	0		0	准双向口
 	//	0		1	推挽输出
@@ -256,35 +252,38 @@ int main()
 	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
 	P3M0 &= (~((1<<2)|(1<<3)));
 	
+	//P_SW1 = 0x80;	// 串口1映射到5.4 5.5
 	// 3.0->Rx  3.1->Tx
 	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
 	P3M0 &= (~((1<<1)|(1<<0)));
 	
-
-//	P5M1 &= (~(1<<5));	// 推挽口
-//	P5M0 |= ((1<<5));
-//	P5M1 &= (~(1<<4));	// 推挽口
-//	P5M0 |= ((1<<4));
 	
 	P5M1 &= (~((1<<4)|(1<<5)));	// 准双向口
 	P5M0 &= (~((1<<4)|(1<<5)));
+}
+int main()
+{
 	
-	P5M1 &= (~(1<<1));	// 准双向口
-	P5M0 &= (~(1<<1));
-
+	Init_GPIO();
+	
+	Init_Uart();
+	
+	Init_Timer0();
 	
 	EA = 1;	// 使能总中断
+	
 	while(1)
 	{
-		if (DOUT == 0)
-		{
-			unsigned long temp = SPI_1237(0, 0);
-			UartSendStr((unsigned char*)&temp, 4);
-		}
+//		if (DOUT == 0)
+//		{
+//			unsigned long temp = SPI_1237(0, 0);
+//			UartSendStr((unsigned char*)&temp, 4);
+//		}
+		
 		if (data_ready==1)
 		{
 			data_ready=0;
-			//UartSendStr("Uart Test !\r\n"); 
+			UartSendStr("Uart Test",9); 
 		}
 		
 //		if(Res_Sign==1) // 如果串口接收到数据
