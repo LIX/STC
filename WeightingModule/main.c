@@ -12,15 +12,23 @@
 #define SPI_WRITE_CMD	0x65
 
 #define DOUT	P33
+#define DOUT_Mask	3
 
-unsigned char Res_Buf[50]; //接收数据的数组，用来接收串口数据
-unsigned char Res_Count=0; //接收数据的字节计数器，表示本次一帧数据包含几个字节
-unsigned char Res_Sign=0; //接收到数据标志，接收到1个字节就会置1
-unsigned char receive_delay=0; // 延时计数器，用来判断有没有接收完一帧数据
+#define P3INTE (*(unsigned char volatile xdata *)0xfd03)
+#define P3INTF (*(unsigned char volatile xdata *)0xfd13)
+#define P3IM0 (*(unsigned char volatile xdata *)0xfd23)
+#define P3IM1 (*(unsigned char volatile xdata *)0xfd33) 
+
+unsigned char Res_Buf[50]; // receive buffer
+unsigned char Res_Count=0; // receive bytes counter
+unsigned char Res_Sign=0; // date receive flag
+unsigned char receive_delay=0; // receive timeout flag
 char systick;
 unsigned char loop_counter=0;
 bit busy; 
 bit data_ready;
+bit DOUT_old;
+bit CS1237_ready;
 unsigned char buffer[5];
 
 
@@ -35,26 +43,26 @@ void SCLK_L()
 }
 void Init_Uart(void)		//9600bps@11.0592MHz
 {
-	SCON = 0x50;		//8位数据,可变波特率
-	AUXR |= 0x40;		//定时器1时钟为Fosc,即1T
-	AUXR &= 0xFE;		//串口1选择定时器1为波特率发生器
-	TMOD &= 0x0F;		//设定定时器1为16位自动重装方式
-	TL1 = T1_TIM;		//设定定时初值
-	TH1 = T1_TIM>>8;		//设定定时初值
-	ET1 = 0;		//禁止定时器1中断
+	SCON = 0x50;		//8 bit, adjustable buadrate
+	AUXR |= 0x40;		//timer1 frequency = Fosc
+	AUXR &= 0xFE;		//
+	TMOD &= 0x0F;		// 16 bit auto reload
+	TL1 = T1_TIM;		//tiemer low 8 bit
+	TH1 = T1_TIM>>8;		//timer high 8 bit
+	ET1 = 0;		//disable timer1 interrupt
 	ES = 1;
-	TR1 = 1;		//启动定时器1
+	TR1 = 1;		//enable timer 
 }
 
-void Init_Timer0(void)		//1毫秒@11.0592MHz
+void Init_Timer0(void)		//1ms @11.0592MHz
 {
-	AUXR |= 0x80;		//定时器时钟1T模式
-	TMOD &= 0xF0;		//设置定时器模式
-	TL0 = T0_TIM;		//设置定时初值
-	TH0 = T0_TIM>>8;	//设置定时初值
-	TF0 = 0;		//清除TF0标志
-	TR0 = 1;		//定时器0开始计时
-	ET0 = 1;		// 使能定时器0溢出中断
+	AUXR |= 0x80;		
+	TMOD &= 0xF0;		
+	TL0 = T0_TIM;		
+	TH0 = T0_TIM>>8;	
+	TF0 = 0;		//clear TF0 
+	TR0 = 1;		//timer0 enable
+	ET0 = 1;		// enable timer0 interrupt
 }
 
 void Delay1us()		//@11.0592MHz
@@ -66,19 +74,19 @@ void Delay1us()		//@11.0592MHz
 	while (--i);
 }
 
-void ISR_UART1() interrupt 4 // 串口中断服务函数
+void ISR_UART1() interrupt 4 // uart ISR
 {
 	if (TI)
 	{
 		TI = 0;
 		busy = 0;
 	}
-	if (RI) // 如果接收到一个字节
+	if (RI) 
 	{
-		RI = 0; // 中断标志位清0
-		Res_Buf[Res_Count++]=SBUF; // 把数据保存到接收数组
-		Res_Sign=1; // 表示已经接收到数据
-		receive_delay=0; // 延时计数器清0
+		RI = 0; 
+		Res_Buf[Res_Count++]=SBUF; // save data to buffer
+		Res_Sign=1; // 
+		receive_delay=0; // 
 	} 
 }
 
@@ -97,16 +105,25 @@ void UartSendStr(char *p, char count)
  }
 }
 
-void ISR_Timer0() interrupt 1	// 定时器0中断函数
+void ISR_Timer0() interrupt 1	// timer0 ISR
 {
 	receive_delay++;
 	loop_counter++;
 	
 	if (loop_counter%50 == 0)
 	{
-		P54=!P54;
 		loop_counter=0;
 		data_ready=1;
+	}
+}
+
+void ISR_P3() interrupt 13
+{
+	if ((P3INTF>>DOUT_Mask)&0x1==1)
+	{
+		P3INTF &= ~(1<<DOUT_Mask);	// clear IT flag
+		P3INTE &= ~(1<<DOUT_Mask);	// disable IT 
+		CS1237_ready=1;
 	}
 }
 
@@ -142,16 +159,16 @@ enum
 
 
 // bit7: reserve
-// bit6: 关闭REF输出 
-// bit5:4 更新速率 0->10Hz 1->40Hz 2->640Hz 3->1280Hz
+// bit6: close REF output
+// bit5:4 update frequency 0->10Hz 1->40Hz 2->640Hz 3->1280Hz
 // bit3:2 PGA 0->1 1->2 2->64 3->128
-// bit1:0 通道 0->A 1->保留 2->温度 3->内短
+// bit1:0 channel 0->A 1->reserve 2->temprature 3->internal short
 unsigned long SPI_1237(char operation_type, char config)
 {
 	char i;
 	unsigned long data_temp=0;
 	unsigned char cmd;
-	if (operation_type == read_AD)	// 读AD值
+	if (operation_type == read_AD)	// read AD
 	{
 		for ( i=0; i<27; i++)
 		{
@@ -181,17 +198,17 @@ unsigned long SPI_1237(char operation_type, char config)
 		data_temp = data_temp>>5;
 		
 		// config_stc8g_DOUT(output);
-		if (operation_type == write_config)	// 写配置
+		if (operation_type == write_config)	// write config
 		{
 			cmd = SPI_WRITE_CMD;
 		}
-		else if (operation_type == read_config)  //	读配置
+		else if (operation_type == read_config)  //	read config
 		{
 			cmd = SPI_READ_CMD;
 		}
 		
-		// 30~37 bit 发送命令
-		cmd <<= 1; //填充成8bit
+		// 30~37 bit config
+		cmd <<= 1; //padding to 8bit
 		for (i=7; i>=0; i--)
 		{
 			SCLK_H();
@@ -201,7 +218,7 @@ unsigned long SPI_1237(char operation_type, char config)
 			Delay1us();
 		}
 		
-		if (operation_type == write_config)	// 写配置
+		if (operation_type == write_config)	// write config
 		{
 			// config_stc8g_DOUT(output);
 			for (i=7; i>= 0x0; i--)
@@ -219,7 +236,7 @@ unsigned long SPI_1237(char operation_type, char config)
 			Delay1us();
 			return data_temp<<8;
 		}
-		else if (operation_type == read_config)  //	读配置
+		else if (operation_type == read_config)  //	read config
 		{
 			// config_stc8g_DOUT(input);
 			for (i=7; i>= 0x0; i--)
@@ -246,18 +263,17 @@ void Init_GPIO()
 {
 	// PnM1.x PnM0.x
 	//	0		0	准双向口
-	//	0		1	推挽输出
-	//	1		0	高阻输入
-	//	1		1	开漏输出
+	//	0		1	push pull
+	//	1		0	high z 
+	//	1		1	open drain
 	
 	// P3.2->SCLK  P3.3->MISO
-	P3M1 &= (~((1<<2)|(1<<3)));	// 准双向口
-	P3M0 &= (~((1<<2)|(1<<3)));
+	P3M1 |= (1<<2)|(1<<3);	// open drain
+	P3M0 |= (1<<2)|(1<<3);
 	
-	P32=1; //利用上拉电阻输出1
-	P33=1;
+	P3INTE |= (1<<DOUT_Mask);	// enable P3^3 interrupt
 	
-	//P_SW1 = 0x80;	// 串口1映射到5.4 5.5
+	//P_SW1 = 0x80;	// maping to 5.4 5.5
 	// 3.0->Rx  3.1->Tx
 	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
 	P3M0 &= (~((1<<1)|(1<<0)));
@@ -275,15 +291,20 @@ int main()
 	
 	Init_Timer0();
 	
-	EA = 1;	// 使能总中断
+	EA = 1;	// enable global interrupt
 	
 	while(1)
-	{
-//		if (DOUT == 0)
-//		{
-//			unsigned long temp = SPI_1237(0, 0);
-//			UartSendStr((unsigned char*)&temp, 4);
-//		}
+	{			
+		if (CS1237_ready==1)
+		{
+			
+				unsigned long temp = SPI_1237(0, 0);
+			CS1237_ready=0;
+				P3INTE |= (1<<DOUT_Mask);	// enable P3^3 interrupt
+				UartSendStr((unsigned char*)&temp, 4);
+				P54=!P54;
+		}
+		DOUT_old = DOUT;
 		
 		if (data_ready==1)
 		{

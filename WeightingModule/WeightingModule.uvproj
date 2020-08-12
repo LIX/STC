@@ -386,6 +386,11 @@
               <FileType>1</FileType>
               <FilePath>.\main.c</FilePath>
             </File>
+            <File>
+              <FileName>isr.asm</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\isr.asm</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

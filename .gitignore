@@ -1,0 +1,5 @@
+*.o
+*.lst
+*.pdf
+*.m51
+**/Objects/*
