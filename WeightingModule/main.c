@@ -117,14 +117,10 @@ void ISR_Timer0() interrupt 1	// timer0 ISR
 	}
 }
 
-void ISR_P3() interrupt 13
+void ISR_INT1() interrupt 2
 {
-	if ((P3INTF>>DOUT_Mask)&0x1==1)
-	{
-		P3INTF &= ~(1<<DOUT_Mask);	// clear IT flag
-		P3INTE &= ~(1<<DOUT_Mask);	// disable IT 
-		CS1237_ready=1;
-	}
+	EX1=0;
+	CS1237_ready=1;
 }
 
 enum
@@ -259,6 +255,7 @@ unsigned long SPI_1237(char operation_type, char config)
 }
 
 
+
 void Init_GPIO()
 {
 	// PnM1.x PnM0.x
@@ -271,12 +268,13 @@ void Init_GPIO()
 	P3M1 |= (1<<2)|(1<<3);	// open drain
 	P3M0 |= (1<<2)|(1<<3);
 	
-	P3INTE |= (1<<DOUT_Mask);	// enable P3^3 interrupt
 	
-	//P_SW1 = 0x80;	// maping to 5.4 5.5
+	//P_SW1 |= 0x80;	// maping to 5.4 5.5
 	// 3.0->Rx  3.1->Tx
 	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
 	P3M0 &= (~((1<<1)|(1<<0)));
+	EX1=1;	// int1 interrupt enable
+	IT1=1;	//  interrupt at falling edge
 	
 	
 	P5M1 &= (~((1<<4)|(1<<5)));	// 准双向口
@@ -300,8 +298,8 @@ int main()
 			
 				unsigned long temp = SPI_1237(0, 0);
 			CS1237_ready=0;
-				P3INTE |= (1<<DOUT_Mask);	// enable P3^3 interrupt
 				UartSendStr((unsigned char*)&temp, 4);
+			EX1=1;
 				P54=!P54;
 		}
 		DOUT_old = DOUT;
