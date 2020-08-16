@@ -1,5 +1,4 @@
 ".\Objects\STARTUP.obj",
-".\Objects\main.obj",
-".\Objects\isr.obj" 
+".\Objects\main.obj" 
 TO ".\Objects\WeightingModule" 
 PRINT(".\Listings\WeightingModule.m51") RAMSIZE(256) 

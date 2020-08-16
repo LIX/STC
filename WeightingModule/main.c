@@ -13,6 +13,7 @@
 
 #define DOUT	P33
 #define DOUT_Mask	3
+#define SCLK	P32
 
 #define P3INTE (*(unsigned char volatile xdata *)0xfd03)
 #define P3INTF (*(unsigned char volatile xdata *)0xfd13)
@@ -32,15 +33,6 @@ bit CS1237_ready;
 unsigned char buffer[5];
 
 
-void SCLK_H()
-{
-	P32 = 1;
-}
-
-void SCLK_L()
-{
-	P32 = 0;
-}
 void Init_Uart(void)		//9600bps@11.0592MHz
 {
 	SCON = 0x50;		//8 bit, adjustable buadrate
@@ -52,6 +44,11 @@ void Init_Uart(void)		//9600bps@11.0592MHz
 	ET1 = 0;		//disable timer1 interrupt
 	ES = 1;
 	TR1 = 1;		//enable timer 
+	
+	//PSH=1;	// interrupt priority 3
+	IPH |= (1<<4);
+	//PS=1;
+	IP |= (1<<4);
 }
 
 void Init_Timer0(void)		//1ms @11.0592MHz
@@ -93,8 +90,8 @@ void ISR_UART1() interrupt 4 // uart ISR
 void UartSend(char dat)
 {
  while (busy);
- busy = 1;
  SBUF = dat;
+ busy = 1;
 } 
 
 void UartSendStr(char *p, char count)
@@ -105,11 +102,11 @@ void UartSendStr(char *p, char count)
  }
 }
 
+
 void ISR_Timer0() interrupt 1	// timer0 ISR
 {
 	receive_delay++;
 	loop_counter++;
-	
 	if (loop_counter%50 == 0)
 	{
 		loop_counter=0;
@@ -117,10 +114,14 @@ void ISR_Timer0() interrupt 1	// timer0 ISR
 	}
 }
 
+bit spi_begin = 1;
 void ISR_INT1() interrupt 2
 {
-	EX1=0;
-	CS1237_ready=1;
+	//P54=!P54;
+	if (spi_begin == 1)
+	{
+		CS1237_ready=1;
+	}
 }
 
 enum
@@ -168,12 +169,12 @@ unsigned long SPI_1237(char operation_type, char config)
 	{
 		for ( i=0; i<27; i++)
 		{
-			SCLK_H();
+			SCLK=1;
 			//Delay1us();
 			_nop_();
 			data_temp |= DOUT;
 			data_temp <<= 1;
-			SCLK_L();
+			SCLK=0;
 			_nop_();
 			//Delay1us();
 		}
@@ -184,11 +185,11 @@ unsigned long SPI_1237(char operation_type, char config)
 		// 1~29 bit
 		for ( i=0; i<29; i++)
 		{
-			SCLK_H();
+			SCLK=1;
 			Delay1us();
 			data_temp |= DOUT;
 			data_temp <<= 1;
-			SCLK_L();
+			SCLK=0;
 			Delay1us();
 		}
 		data_temp = data_temp>>5;
@@ -207,10 +208,10 @@ unsigned long SPI_1237(char operation_type, char config)
 		cmd <<= 1; //padding to 8bit
 		for (i=7; i>=0; i--)
 		{
-			SCLK_H();
+			SCLK=1;
 			Delay1us();
 			DOUT=(cmd>>i) & 0x1;
-			SCLK_L();
+			SCLK=0;
 			Delay1us();
 		}
 		
@@ -219,16 +220,16 @@ unsigned long SPI_1237(char operation_type, char config)
 			// config_stc8g_DOUT(output);
 			for (i=7; i>= 0x0; i--)
 			{
-				SCLK_H();
+				SCLK=1;
 				Delay1us();
 				DOUT=(config>>i) & 0x1;
-				SCLK_L();
+				SCLK=0;
 				Delay1us();
 			}
 			// bit46
-			SCLK_H();
+			SCLK=1;
 			Delay1us();
-			SCLK_L();
+			SCLK=0;
 			Delay1us();
 			return data_temp<<8;
 		}
@@ -237,24 +238,32 @@ unsigned long SPI_1237(char operation_type, char config)
 			// config_stc8g_DOUT(input);
 			for (i=7; i>= 0x0; i--)
 			{
-				SCLK_H();
+				SCLK=1;
 				Delay1us();
 				data_temp |= DOUT;
 				data_temp <<= 1;
-				SCLK_L();
+				SCLK=0;
 				Delay1us();
 			}
 			// bit46
-			SCLK_H();
+			SCLK=1;
 			Delay1us();
-			SCLK_L();
+			SCLK=0;
 			Delay1us();
 			return data_temp;
 		}
 	}
 }
 
+void Delay20us()		//@11.0592MHz
+{
+	unsigned char i;
 
+	_nop_();
+	_nop_();
+	i = 71;
+	while (--i);
+}
 
 void Init_GPIO()
 {
@@ -265,14 +274,20 @@ void Init_GPIO()
 	//	1		1	open drain
 	
 	// P3.2->SCLK  P3.3->MISO
-	P3M1 |= (1<<2)|(1<<3);	// open drain
-	P3M0 |= (1<<2)|(1<<3);
 	
+	SCLK=0;	// pull SCLK to previent CS1237 enter low power mode
+	P3M1 &= ~(1<<2);	// pull push
+	P3M0 |= (1<<2);
+	
+	
+	P3M1 |= (1<<3);	// open drain
+	P3M0 |= (1<<3);
 	
 	//P_SW1 |= 0x80;	// maping to 5.4 5.5
 	// 3.0->Rx  3.1->Tx
-	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
-	P3M0 &= (~((1<<1)|(1<<0)));
+//	P3M1 &= (~((1<<1)|(1<<0)));	// 准双向口
+//	P3M0 &= (~((1<<1)|(1<<0)));
+	
 	EX1=1;	// int1 interrupt enable
 	IT1=1;	//  interrupt at falling edge
 	
@@ -280,6 +295,8 @@ void Init_GPIO()
 	P5M1 &= (~((1<<4)|(1<<5)));	// 准双向口
 	P5M0 &= (~((1<<4)|(1<<5)));
 }
+	char i;
+	unsigned long data_temp=0;
 int main()
 {
 	
@@ -293,16 +310,16 @@ int main()
 	
 	while(1)
 	{			
+		
 		if (CS1237_ready==1)
 		{
-			
-				unsigned long temp = SPI_1237(0, 0);
+			unsigned long temp=0;
 			CS1237_ready=0;
+			spi_begin = 0;
+			temp=SPI_1237(read_AD, 0);
 				UartSendStr((unsigned char*)&temp, 4);
-			EX1=1;
-				P54=!P54;
+			spi_begin = 1;
 		}
-		DOUT_old = DOUT;
 		
 		if (data_ready==1)
 		{
