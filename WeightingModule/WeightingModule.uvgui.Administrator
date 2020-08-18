@@ -102,8 +102,8 @@
       </MaxPosition>
       <NormalPosition>
         <Top>161</Top>
-        <Left>1917</Left>
-        <Right>2899</Right>
+        <Left>1912</Left>
+        <Right>2894</Right>
         <Bottom>676</Bottom>
       </NormalPosition>
     </WindowPosition>
@@ -1450,7 +1450,7 @@
         <RecentRowIndex>0</RecentRowIndex>
         <RectRecentDocked>
           <Len>16</Len>
-          <Data>F7000000660000008D05000081000000</Data>
+          <Data>F700000066000000E102000081000000</Data>
         </RectRecentDocked>
         <RectRecentFloat>
           <Len>16</Len>
@@ -3606,9 +3606,9 @@
       <ActiveTab>0</ActiveTab>
       <Doc>
         <Name>.\main.c</Name>
-        <ColumnNumber>4</ColumnNumber>
-        <TopLine>111</TopLine>
-        <CurrentLine>120</CurrentLine>
+        <ColumnNumber>9</ColumnNumber>
+        <TopLine>141</TopLine>
+        <CurrentLine>146</CurrentLine>
         <Folding>1</Folding>
         <ContractedFolders></ContractedFolders>
         <PaneID>0</PaneID>

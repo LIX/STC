@@ -139,19 +139,21 @@ enum
 
 
 // P3.2 SCLK		P3.3 DOUT
-//void config_stc8g_DOUT(char type)
-//{
-//	if (type == input)
-//	{
-//		P3M0=P3M0&(~(1<<3));
-//		P3M1=P3M1|(1<<3);
-//	}
-//	else if (type == output)
-//	{
-//		P3M0 = P3M0|(1<<3);
-//		P3M1 = P3M1&(~(1<<3));
-//	}
-//}
+void config_stc8g_DOUT(char type)
+{
+	if (type == input)
+	{
+		P33=1;
+		P3M1 |= (1<<3);	// open drain
+		P3M0 |= (1<<3);
+	}
+	else if (type == output)
+	{
+		P33=0;
+		P3M1 &= ~(1<<3);	// pull push
+		P3M0 |= (1<<3);
+	}
+}
 
 
 
@@ -176,7 +178,6 @@ unsigned long SPI_1237(char operation_type, char config)
 			data_temp <<= 1;
 			SCLK=0;
 			_nop_();
-			//Delay1us();
 		}
 		return  data_temp<<5;
 	}
@@ -186,15 +187,15 @@ unsigned long SPI_1237(char operation_type, char config)
 		for ( i=0; i<29; i++)
 		{
 			SCLK=1;
-			Delay1us();
+			_nop_();
 			data_temp |= DOUT;
 			data_temp <<= 1;
 			SCLK=0;
-			Delay1us();
+			_nop_();
 		}
 		data_temp = data_temp>>5;
 		
-		// config_stc8g_DOUT(output);
+		
 		if (operation_type == write_config)	// write config
 		{
 			cmd = SPI_WRITE_CMD;
@@ -205,32 +206,35 @@ unsigned long SPI_1237(char operation_type, char config)
 		}
 		
 		// 30~37 bit config
-		cmd <<= 1; //padding to 8bit
+		
+		config_stc8g_DOUT(output);
 		for (i=7; i>=0; i--)
 		{
 			SCLK=1;
-			Delay1us();
+			_nop_();
 			DOUT=(cmd>>i) & 0x1;
 			SCLK=0;
-			Delay1us();
+			_nop_();
 		}
+		config_stc8g_DOUT(input);
 		
 		if (operation_type == write_config)	// write config
 		{
-			// config_stc8g_DOUT(output);
+			config_stc8g_DOUT(output);
 			for (i=7; i>= 0x0; i--)
 			{
 				SCLK=1;
-				Delay1us();
+				_nop_();
 				DOUT=(config>>i) & 0x1;
 				SCLK=0;
-				Delay1us();
+				_nop_();
 			}
 			// bit46
 			SCLK=1;
-			Delay1us();
+			_nop_();
 			SCLK=0;
-			Delay1us();
+			_nop_();
+			config_stc8g_DOUT(input);
 			return data_temp<<8;
 		}
 		else if (operation_type == read_config)  //	read config
@@ -239,17 +243,17 @@ unsigned long SPI_1237(char operation_type, char config)
 			for (i=7; i>= 0x0; i--)
 			{
 				SCLK=1;
-				Delay1us();
+				_nop_();
 				data_temp |= DOUT;
 				data_temp <<= 1;
 				SCLK=0;
-				Delay1us();
+				_nop_();
 			}
 			// bit46
 			SCLK=1;
-			Delay1us();
+			_nop_();
 			SCLK=0;
-			Delay1us();
+			_nop_();
 			return data_temp;
 		}
 	}
@@ -316,7 +320,8 @@ int main()
 			unsigned long temp=0;
 			CS1237_ready=0;
 			spi_begin = 0;
-			temp=SPI_1237(read_AD, 0);
+			//temp=SPI_1237(read_AD, 0);
+			temp=SPI_1237(read_config, 0);
 				UartSendStr((unsigned char*)&temp, 4);
 			spi_begin = 1;
 		}
