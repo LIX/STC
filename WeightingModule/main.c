@@ -143,9 +143,9 @@ void config_stc8g_DOUT(char type)
 {
 	if (type == input)
 	{
-		P33=1;
 		P3M1 |= (1<<3);	// open drain
 		P3M0 |= (1<<3);
+		P33=1;
 	}
 	else if (type == output)
 	{
@@ -205,10 +205,10 @@ unsigned long SPI_1237(char operation_type, char config)
 			cmd = SPI_READ_CMD;
 		}
 		
-		// 30~37 bit config
+		// 30~36 bit config
 		
 		config_stc8g_DOUT(output);
-		for (i=7; i>=0; i--)
+		for (i=6; i>=0; i--)
 		{
 			SCLK=1;
 			_nop_();
@@ -217,6 +217,11 @@ unsigned long SPI_1237(char operation_type, char config)
 			_nop_();
 		}
 		config_stc8g_DOUT(input);
+		
+			SCLK=1;
+			Delay1us();
+			SCLK=0;
+			_nop_();
 		
 		if (operation_type == write_config)	// write config
 		{
@@ -231,7 +236,7 @@ unsigned long SPI_1237(char operation_type, char config)
 			}
 			// bit46
 			SCLK=1;
-			_nop_();
+			Delay1us();
 			SCLK=0;
 			_nop_();
 			config_stc8g_DOUT(input);
@@ -251,7 +256,7 @@ unsigned long SPI_1237(char operation_type, char config)
 			}
 			// bit46
 			SCLK=1;
-			_nop_();
+			Delay1us();
 			SCLK=0;
 			_nop_();
 			return data_temp;
@@ -321,7 +326,8 @@ int main()
 			CS1237_ready=0;
 			spi_begin = 0;
 			//temp=SPI_1237(read_AD, 0);
-			temp=SPI_1237(read_config, 0);
+			//temp=SPI_1237(read_config, 0);
+			temp=SPI_1237(write_config, 0xF);
 				UartSendStr((unsigned char*)&temp, 4);
 			spi_begin = 1;
 		}
