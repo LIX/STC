@@ -146,7 +146,7 @@
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>0</BreakIfRCount>
-          <Filename>C:\Users\Administrator\Documents\STM32_project\stm32\STC\WeightingModule\main.c</Filename>
+          <Filename>main.c</Filename>
           <ExecCommand></ExecCommand>
           <Expression></Expression>
         </Bp>
@@ -162,7 +162,7 @@
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>0</BreakIfRCount>
-          <Filename>C:\Users\Administrator\Documents\STM32_project\stm32\STC\WeightingModule\main.c</Filename>
+          <Filename>main.c</Filename>
           <ExecCommand></ExecCommand>
           <Expression></Expression>
         </Bp>
@@ -178,7 +178,7 @@
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>0</BreakIfRCount>
-          <Filename>C:\Users\Administrator\Documents\STM32_project\stm32\STC\WeightingModule\main.c</Filename>
+          <Filename>main.c</Filename>
           <ExecCommand></ExecCommand>
           <Expression></Expression>
         </Bp>

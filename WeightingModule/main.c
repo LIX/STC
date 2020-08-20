@@ -1,6 +1,9 @@
 #include "STC8.h"
 #include "intrins.h" 
 
+#define int8 char
+#define uint8 unsigned char
+#define uint32 unsigned long
 #define	Fosc	11059200UL
 #define T0_frequency	1000
 #define	T0_TIM	(65536-(Fosc/1/T0_frequency))
@@ -15,22 +18,25 @@
 #define DOUT_Mask	3
 #define SCLK	P32
 
-#define P3INTE (*(unsigned char volatile xdata *)0xfd03)
-#define P3INTF (*(unsigned char volatile xdata *)0xfd13)
-#define P3IM0 (*(unsigned char volatile xdata *)0xfd23)
-#define P3IM1 (*(unsigned char volatile xdata *)0xfd33) 
-
-unsigned char Res_Buf[50]; // receive buffer
-unsigned char Res_Count=0; // receive bytes counter
-unsigned char Res_Sign=0; // date receive flag
-unsigned char receive_delay=0; // receive timeout flag
-char systick;
-unsigned char loop_counter=0;
+uint8 Res_Count=0; // receive bytes counter
+bit Res_Sign=0; // date receive flag
+uint8 receive_delay=0; // receive timeout flag
+uint8 systick;
+uint8 loop_counter=0;
 bit busy; 
 bit data_ready;
 bit DOUT_old;
 bit CS1237_ready;
-unsigned char buffer[5];
+uint8 buffer[5];
+struct frame_s
+{
+	uint8 receiver_ID;
+	uint8 sender_ID;
+	uint8 length;
+	uint8 data_begin[20];
+	
+};
+struct frame_s frame;
 
 
 void Init_Uart(void)		//9600bps@11.0592MHz
@@ -81,7 +87,7 @@ void ISR_UART1() interrupt 4 // uart ISR
 	if (RI) 
 	{
 		RI = 0; 
-		Res_Buf[Res_Count++]=SBUF; // save data to buffer
+		frame.data_begin[Res_Count++]=SBUF; // save data to buffer
 		Res_Sign=1; // 
 		receive_delay=0; // 
 	} 
@@ -165,8 +171,8 @@ void config_stc8g_DOUT(char type)
 unsigned long SPI_1237(char operation_type, char config)
 {
 	char i;
-	unsigned long data_temp=0;
-	unsigned char cmd;
+	uint32 data_temp=0;
+	uint8 cmd;
 	if (operation_type == read_AD)	// read AD
 	{
 		for ( i=0; i<27; i++)
@@ -264,15 +270,6 @@ unsigned long SPI_1237(char operation_type, char config)
 	}
 }
 
-void Delay20us()		//@11.0592MHz
-{
-	unsigned char i;
-
-	_nop_();
-	_nop_();
-	i = 71;
-	while (--i);
-}
 
 void Init_GPIO()
 {
@@ -305,10 +302,11 @@ void Init_GPIO()
 	P5M0 &= (~((1<<4)|(1<<5)));
 }
 	char i;
-	unsigned long data_temp=0;
+	unsigned long read_CS1237=0;
+	char CS1237_mode=1;
 int main()
 {
-	
+	char *ID=0;
 	Init_GPIO();
 	
 	Init_Uart();
@@ -325,36 +323,42 @@ int main()
 			unsigned long temp=0;
 			CS1237_ready=0;
 			spi_begin = 0;
-			//temp=SPI_1237(read_AD, 0);
-			//temp=SPI_1237(read_config, 0);
-			temp=SPI_1237(write_config, 0xF);
-				UartSendStr((unsigned char*)&temp, 4);
+			//data_temp=SPI_1237(read_AD, 0);
+			//data_temp=SPI_1237(write_config, 0);
+			read_CS1237=SPI_1237(read_config, 0x0);
 			spi_begin = 1;
 		}
-		
-		if (data_ready==1)
+
+		if(Res_Sign==1) // 如果串口接收到数据
 		{
-			data_ready=0;
-			//SPI_1237(read_config, 0);
-			//UartSendStr("Uart Test",9); 
+			//延时等待接收完一帧数据
+			if (receive_delay>=5)
+			{
+				////////////
+				//这里就可以处理接收数据了
+				////////////
+				Res_Sign=0;	// 接收标志清0
+				Res_Count=0; // 接收数据字节计数器清0			
+				switch(frame.data_begin[0])
+				{
+					case 1:	
+						CS1237_mode = 1;	// read channelA
+						UartSendStr((uint8*)&read_CS1237, 4);
+					break;
+					
+					case 2:
+						CS1237_mode = 2;	// config CS1237
+					break;
+					
+					case 3:
+						//read muc ID
+					 ID = (char code *)0x1ff9;
+						UartSendStr(ID, 7);
+					break;
+						
+				}
+				
+			}
 		}
-		
-//		if(Res_Sign==1) // 如果串口接收到数据
-//		{
-//			//延时等待接收完一帧数据
-//			if (receive_delay>=5)
-//			{
-//				////////////
-//				//这里就可以处理接收数据了
-//				////////////
-//				Res_Sign=0;	// 接收标志清0
-//				Res_Count=0; // 接收数据字节计数器清0				
-//			}
-//		}
-//		
-//		if (DOUT == 0)	//	数据转换完成
-//		{
-//			SPI_1237(read_AD, 0);
-//		}
 	}
 }
