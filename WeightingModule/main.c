@@ -161,7 +161,51 @@ void config_stc8g_DOUT(char type)
 	}
 }
 
+void IapIdle() {
+  IAP_CONTR = 0;    //关闭 IAP 功能
+  IAP_CMD = 0;      //清除命令寄存器
+  IAP_TRIG = 0;     //清除触发寄存器
+  IAP_ADDRH = 0x80; //将地址设置到非 IAP 区域
+  IAP_ADDRL = 0;
+}
+char IapRead(int addr) {
+  char dat;
 
+  IAP_CONTR = 0x80;      //使能 IAP
+  IAP_TPS = 12;          //设置擦除等待参数 12MHz
+  IAP_CMD = 1;           //设置 IAP 读命令
+  IAP_ADDRL = addr;      //设置 IAP 低地址
+  IAP_ADDRH = addr >> 8; //设置 IAP 高地址
+  IAP_TRIG = 0x5a;       //写触发命令(0x5a)
+  IAP_TRIG = 0xa5;       //写触发命令(0xa5)
+  _nop_();
+  dat = IAP_DATA; //读 IAP 数据
+  IapIdle();
+  return dat;
+}
+void IapProgram(int addr, char dat) {
+  IAP_CONTR = 0x80;      //使能 IAP
+  IAP_TPS = 12;          //设置擦除等待参数 12MHz
+  IAP_CMD = 2;           //设置 IAP 写命令
+  IAP_ADDRL = addr;      //设置 IAP 低地址
+  IAP_ADDRH = addr >> 8; //设置 IAP 高地址
+  IAP_DATA = dat;        //写 IAP 数据
+  IAP_TRIG = 0x5a;       //写触发命令(0x5a)
+  IAP_TRIG = 0xa5;       //写触发命令(0xa5)
+  _nop_();
+  IapIdle(); //关闭 IAP 功能
+}
+void IapErase(int addr) {
+  IAP_CONTR = 0x80;      //使能 IAP
+  IAP_TPS = 12;          //设置擦除等待参数 12MHz
+  IAP_CMD = 3;           //设置 IAP 擦除命令
+  IAP_ADDRL = addr;      //设置 IAP 低地址
+  IAP_ADDRH = addr >> 8; //设置 IAP 高地址
+  IAP_TRIG = 0x5a;       //写触发命令(0x5a)
+  IAP_TRIG = 0xa5;       //写触发命令(0xa5)
+  _nop_();               //
+  IapIdle();             //关闭 IAP 功能
+}
 
 // bit7: reserve
 // bit6: close REF output
@@ -323,11 +367,14 @@ int main()
 			unsigned long temp=0;
 			CS1237_ready=0;
 			spi_begin = 0;
-			//data_temp=SPI_1237(read_AD, 0);
-			//data_temp=SPI_1237(write_config, 0);
-			read_CS1237=SPI_1237(read_config, 0x0);
-			spi_begin = 1;
-		}
+                        if (CS1237_mode == 1) {
+                          read_CS1237 = SPI_1237(read_config, 0x0);
+                        } else if (CS1237_mode == 2) {
+                          read_CS1237 =
+                              SPI_1237(write_config, frame.data_begin[1]);
+                        }
+                        spi_begin = 1;
+                }
 
 		if(Res_Sign==1) // 如果串口接收到数据
 		{
@@ -343,7 +390,6 @@ int main()
 				{
 					case 1:	
 						CS1237_mode = 1;	// read channelA
-						UartSendStr((uint8*)&read_CS1237, 4);
 					break;
 					
 					case 2:
@@ -355,10 +401,17 @@ int main()
 					 ID = (char code *)0x1ff9;
 						UartSendStr(ID, 7);
 					break;
-						
-				}
-				
-			}
+
+                                        case 4:
+                                          IapErase(0x0400);
+                                          UartSend(IapRead(0x0400)); // P0=0xff
+                                          IapProgram(0x0400, 0x12);
+                                          UartSend(IapRead(0x0400));
+                                          break;
+                                          // UartSendStr((uint8 *)&read_CS1237,
+                                          // 4);
+                                        }
+                        }
 		}
 	}
 }
