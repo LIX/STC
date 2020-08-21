@@ -351,6 +351,7 @@ void Init_GPIO()
 int main()
 {
 	char *ID=0;
+	uint8 eeprom_temp[10];
 	Init_GPIO();
 	
 	Init_Uart();
@@ -367,13 +368,13 @@ int main()
 			unsigned long temp=0;
 			CS1237_ready=0;
 			spi_begin = 0;
-                        if (CS1237_mode == 1) {
-                          read_CS1237 = SPI_1237(read_config, 0x0);
-                        } else if (CS1237_mode == 2) {
-                          read_CS1237 =
-                              SPI_1237(write_config, frame.data_begin[1]);
-                        }
-                        spi_begin = 1;
+			if (CS1237_mode == 1) {
+				read_CS1237 = SPI_1237(read_config, 0x0);
+			} else if (CS1237_mode == 2) {
+				read_CS1237 =
+						SPI_1237(write_config, frame.data_begin[1]);
+			}
+			spi_begin = 1;
                 }
 
 		if(Res_Sign==1) // 如果串口接收到数据
@@ -402,15 +403,37 @@ int main()
 						UartSendStr(ID, 7);
 					break;
 
-                                        case 4:
-                                          IapErase(0x0400);
-                                          UartSend(IapRead(0x0400)); // P0=0xff
-                                          IapProgram(0x0400, 0x12);
-                                          UartSend(IapRead(0x0400));
-                                          break;
-                                          // UartSendStr((uint8 *)&read_CS1237,
-                                          // 4);
-                                        }
+					case 4:	// write eeprom
+//						for (i=0; i<10; i++)
+//						{
+//							eeprom_temp[i]=IapRead(0x0400+i);
+//						}
+//						eeprom_temp[2]=0x9;
+//						IapErase(0x0400);
+						for (i=0; i<10; i++)
+						{
+							IapProgram(0x0400+i, i);
+						}
+						break;
+						
+					case 5:	// read eeprom
+						for (i=0; i<10; i++)
+						{
+							eeprom_temp[i]=IapRead(0x0400+i);
+						}
+						UartSendStr((uint8 *)&eeprom_temp, 10);
+						break;
+						
+					case 6:	// erase eeprom
+						IapErase(0x0000);
+						for (i=0; i<8; i++)
+						{
+							IapErase(0x200*i);
+						}
+						break;
+						// UartSendStr((uint8 *)&read_CS1237,
+						// 4);
+					}
                         }
 		}
 	}
