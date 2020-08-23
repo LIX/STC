@@ -3,6 +3,7 @@
 
 #define int8 char
 #define uint8 unsigned char
+#define uint16 unsigned short
 #define uint32 unsigned long
 #define	Fosc	11059200UL
 #define T0_frequency	1000
@@ -17,6 +18,7 @@
 #define DOUT	P33
 #define DOUT_Mask	3
 #define SCLK	P32
+#define ID	(char code *)(0x1ff9)
 
 uint8 Res_Count=0; // receive bytes counter
 bit Res_Sign=0; // date receive flag
@@ -38,6 +40,7 @@ struct frame_s
 };
 struct frame_s frame;
 
+extern unsigned int GetCRC16(unsigned char *, unsigned char);
 
 void Init_Uart(void)		//9600bps@11.0592MHz
 {
@@ -350,7 +353,6 @@ void Init_GPIO()
 	char CS1237_mode=1;
 int main()
 {
-	char *ID=0;
 	uint8 eeprom_temp[10];
 	Init_GPIO();
 	
@@ -359,7 +361,6 @@ int main()
 	Init_Timer0();
 	
 	EA = 1;	// enable global interrupt
-	
 	while(1)
 	{			
 		
@@ -385,8 +386,19 @@ int main()
 				////////////
 				//这里就可以处理接收数据了
 				////////////
-				Res_Sign=0;	// 接收标志清0
-				Res_Count=0; // 接收数据字节计数器清0			
+
+				
+				uint8 *p_frame_buffer=(uint8 *)&frame;
+//			unsigned int crc;
+//			unsigned char crch, crcl;
+//				    //?????,??????????
+//				crc = GetCRC16(p_frame_buffer, Res_Count-2); //?? CRC ???
+//				crch = crc >> 8;
+//				crcl = crc & 0xFF;
+//				if ((p_frame_buffer[Res_Count-2]!=crch) || (p_frame_buffer[Res_Count-1]!=crcl)){
+//						return; //? CRC ?????????
+//				}
+				
 				switch(frame.data_begin[0])
 				{
 					case 1:	
@@ -399,7 +411,6 @@ int main()
 					
 					case 3:
 						//read muc ID
-					 ID = (char code *)0x1ff9;
 						UartSendStr(ID, 7);
 					break;
 
@@ -425,15 +436,25 @@ int main()
 						break;
 						
 					case 6:	// erase eeprom
-						IapErase(0x0000);
 						for (i=0; i<8; i++)
 						{
 							IapErase(0x200*i);
 						}
 						break;
+						
+					case 7:
+					{
+						uint16 max_time = frame.data_begin[2];
+						uint16 wait_time = GetCRC16(ID, 7)/max_time;
+						
+						//wait_time = 
+					}
 						// UartSendStr((uint8 *)&read_CS1237,
 						// 4);
 					}
+				
+				Res_Sign=0;	// 接收标志清0
+				Res_Count=0; // 接收数据字节计数器清0			
                         }
 		}
 	}
