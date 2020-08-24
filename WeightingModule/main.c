@@ -32,9 +32,9 @@ bit CS1237_ready;
 uint8 buffer[5];
 struct frame_s
 {
-	uint8 receiver_ID;
-	uint8 sender_ID;
-	uint8 length;
+//	uint8 receiver_ID;
+//	uint8 sender_ID;
+//	uint8 length;
 	uint8 data_begin[20];
 	
 };
@@ -90,7 +90,7 @@ void ISR_UART1() interrupt 4 // uart ISR
 	if (RI) 
 	{
 		RI = 0; 
-		frame.data_begin[Res_Count++]=SBUF; // save data to buffer
+		((uint8 *)&frame)[Res_Count++]=SBUF; // save data to buffer
 		Res_Sign=1; // 
 		receive_delay=0; // 
 	} 
